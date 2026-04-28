@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caplee Pipeline Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+  <link href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --brand: #0d6efd;
+      --brand-dark: #0b5ed7;
+    }
+    body { background: #f8f9fa; font-size: 0.92rem; }
+    .navbar-brand { font-weight: 700; letter-spacing: -0.5px; font-size: 1.15rem; }
+    .phase-card {
+      border: none;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      transition: box-shadow 0.2s;
+    }
+    .phase-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+    .phase-num {
+      font-size: 2.2rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .phase-label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; }
+    .progress { height: 8px; border-radius: 4px; }
+    .field-bar { height: 20px; border-radius: 4px; font-size: 0.72rem; line-height: 20px; padding: 0 6px; min-width: 30px; }
+    .badge-enriched { background: #198754; }
+    .badge-pending { background: #dee2e6; color: #6c757d; }
+    .log-entry { font-family: monospace; font-size: 0.78rem; padding: 3px 0; border-bottom: 1px solid #f0f0f0; }
+    .log-ok { color: #198754; }
+    .log-error { color: #dc3545; }
+    .logo-thumb { width: 36px; height: 36px; object-fit: contain; border-radius: 4px; background: #fff; border: 1px solid #e9ecef; }
+    .logo-placeholder { width: 36px; height: 36px; background: #e9ecef; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.65rem; color: #adb5bd; }
+    #teamsTable td { vertical-align: middle; }
+    .state-badge { font-size: 0.7rem; padding: 2px 6px; }
+    .refresh-indicator { font-size: 0.75rem; color: #adb5bd; }
+    .section-title { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.8px; color: #6c757d; font-weight: 600; margin-bottom: 12px; }
+    .tab-content { padding-top: 24px; }
+    .copy-btn { cursor: pointer; font-size: 0.7rem; padding: 1px 6px; }
+    #chart-states { max-height: 420px; }
+    .enriched-row { background: #f0fff4 !important; }
+
+    /* Designs gallery */
+    .design-card { position: relative; cursor: pointer; border-radius: 10px; overflow: hidden; transition: transform 0.15s, box-shadow 0.15s; }
+    .design-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important; }
+    .design-card img { width: 100%; aspect-ratio: 16/9; object-fit: contain; background: #f1f3f5; padding: 8px; }
+    .design-card .card-body { padding: 8px 12px; }
+    .design-label { font-size: 0.8rem; font-weight: 600; text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .design-state { font-size: 0.7rem; color: #6c757d; }
+    .design-delete-btn { position: absolute; top: 6px; right: 6px; z-index: 2; opacity: 0; transition: opacity 0.15s; border-radius: 50%; width: 26px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; line-height: 1; }
+    .design-card:hover .design-delete-btn { opacity: 1; }
+
+    /* Pipeline tab */
+    .process-card { border-radius: 10px; }
+    .process-log { height: 200px; overflow-y: auto; background: #0f1117; color: #a8ff78; font-size: 0.72rem; font-family: monospace; padding: 10px; border-radius: 6px; margin: 0; white-space: pre-wrap; word-break: break-all; }
+    .status-badge-idle    { background: #6c757d; }
+    .status-badge-running { background: #0d6efd; }
+    .status-badge-done    { background: #198754; }
+    .status-badge-stopped { background: #fd7e14; }
+    .status-badge-error   { background: #dc3545; }
+
+    /* Lightbox */
+    #lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 9999; align-items: center; justify-content: center; flex-direction: column; }
+    #lightbox.active { display: flex; }
+    #lightbox-img { max-width: 90vw; max-height: 82vh; object-fit: contain; border-radius: 6px; box-shadow: 0 8px 40px rgba(0,0,0,0.6); }
+    #lightbox-label { color: #fff; margin-top: 14px; font-size: 1rem; font-weight: 600; letter-spacing: 0.3px; }
+    #lightbox-counter { color: #adb5bd; font-size: 0.78rem; margin-top: 4px; }
+    .lb-btn { position: fixed; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.12); border: none; color: #fff; font-size: 2rem; width: 52px; height: 52px; border-radius: 50%; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; justify-content: center; }
+    .lb-btn:hover { background: rgba(255,255,255,0.25); }
+    #lb-prev { left: 20px; }
+    #lb-next { right: 20px; }
+    #lb-close { position: fixed; top: 16px; right: 20px; background: none; border: none; color: #fff; font-size: 1.6rem; cursor: pointer; opacity: 0.7; }
+    #lb-close:hover { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark px-3 py-2">
+  <span class="navbar-brand">Caplee Pipeline</span>
+  <div class="d-flex align-items-center gap-3">
+    <span class="refresh-indicator" id="last-refresh">—</span>
+    <button class="btn btn-sm btn-outline-light" onclick="loadAll()">Refresh</button>
+  </div>
+</nav>
+
+<div class="container-fluid py-4 px-4">
+
+  <!-- Phase Progress Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card phase-card p-3 h-100">
+        <div class="phase-label mb-1">Phase 0 — Teams Scraped</div>
+        <div class="phase-num text-primary" id="total-count">—</div>
+        <div class="text-muted" style="font-size:0.78rem">total teams in database</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card phase-card p-3 h-100">
+        <div class="phase-label mb-1">Phase 1 — Enrichment</div>
+        <div class="phase-num text-success" id="enriched-count">—</div>
+        <div class="progress mt-2 mb-1"><div class="progress-bar bg-success" id="enriched-bar" style="width:0%"></div></div>
+        <div class="text-muted" style="font-size:0.78rem" id="enriched-pct">0% complete</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card phase-card p-3 h-100">
+        <div class="phase-label mb-1">Phase 2 — Logos</div>
+        <div class="phase-num text-warning" id="logos-count">—</div>
+        <div class="progress mt-2 mb-1"><div class="progress-bar bg-warning" id="logos-bar" style="width:0%"></div></div>
+        <div class="text-muted" style="font-size:0.78rem" id="logos-pct">0% complete</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card phase-card p-3 h-100">
+        <div class="phase-label mb-1">Phase 3 — Parka Designs</div>
+        <div class="d-flex gap-3 align-items-baseline">
+          <div>
+            <div class="phase-num text-danger" id="designs-count">—</div>
+            <div style="font-size:0.7rem;color:#6c757d">v1</div>
+          </div>
+          <div>
+            <div class="phase-num" style="color:#6610f2;" id="designs-v2-count">—</div>
+            <div style="font-size:0.7rem;color:#6c757d">v2</div>
+          </div>
+        </div>
+        <div class="progress mt-2 mb-1"><div class="progress-bar bg-danger" id="designs-bar" style="width:0%"></div></div>
+        <div class="progress mt-1 mb-1"><div class="progress-bar" style="background:#6610f2;" id="designs-v2-bar" style="width:0%"></div></div>
+        <div class="text-muted" style="font-size:0.78rem" id="designs-pct">0% complete</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <ul class="nav nav-tabs" id="mainTabs">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-overview">Overview</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-teams">Team Browser</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-geo">By State</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-designs" onclick="loadDesigns()">Parka Designs</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-pipeline" onclick="startPipelinePoll()">Pipeline</button></li>
+  </ul>
+
+  <div class="tab-content">
+
+    <!-- OVERVIEW TAB -->
+    <div class="tab-pane fade show active" id="tab-overview">
+      <div class="row g-4">
+
+        <!-- Field Coverage -->
+        <div class="col-lg-6">
+          <div class="card border-0 shadow-sm p-3">
+            <div class="section-title">Phase 1 Field Coverage</div>
+            <div id="field-coverage-list">
+              <div class="text-muted text-center py-4" style="font-size:0.85rem">Loading...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Log -->
+        <div class="col-lg-6">
+          <div class="card border-0 shadow-sm p-3" style="max-height:360px; display:flex; flex-direction:column;">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="section-title mb-0">Recent Enrichment Activity</div>
+              <span class="badge bg-secondary" id="log-count">0 entries</span>
+            </div>
+            <div style="overflow-y:auto; flex:1;" id="log-feed">
+              <div class="text-muted text-center py-4" style="font-size:0.85rem">No log entries yet.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TEAMS TAB -->
+    <div class="tab-pane fade" id="tab-teams">
+      <div class="card border-0 shadow-sm p-3">
+        <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
+          <div class="section-title mb-0 me-2">All Teams</div>
+          <select class="form-select form-select-sm" style="width:auto;" id="state-filter">
+            <option value="">All States</option>
+          </select>
+          <select class="form-select form-select-sm" style="width:auto;" id="status-filter">
+            <option value="">Any Status</option>
+            <option value="enriched">Enriched</option>
+            <option value="not enriched">Not Enriched</option>
+          </select>
+          <select class="form-select form-select-sm" style="width:auto;" id="logo-filter">
+            <option value="">Any Logo Status</option>
+            <option value="yes">Has Logo</option>
+            <option value="no">No Logo</option>
+          </select>
+          <span class="text-muted ms-auto" id="table-count" style="font-size:0.78rem;"></span>
+        </div>
+        <div class="table-responsive">
+          <table id="teamsTable" class="table table-hover table-sm" style="width:100%">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>Logo</th>
+                <th>Team Name</th>
+                <th>City</th>
+                <th>St</th>
+                <th>Website</th>
+                <th>Email</th>
+                <th>Coach</th>
+                <th>Mascot</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="teams-tbody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- GEO TAB -->
+    <div class="tab-pane fade" id="tab-geo">
+      <div class="card border-0 shadow-sm p-3">
+        <div class="section-title">Teams by State</div>
+        <canvas id="chart-states"></canvas>
+      </div>
+    </div>
+
+    <!-- DESIGNS TAB -->
+    <div class="tab-pane fade" id="tab-designs">
+      <div class="card border-0 shadow-sm p-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <div class="section-title mb-0">Parka Designs</div>
+            <div class="text-muted" style="font-size:0.75rem">Click any design to view full size — use ← → arrow keys to browse</div>
+          </div>
+          <span class="badge bg-dark fs-6 px-3 py-2" id="designs-gallery-count">0 designs</span>
+        </div>
+        <!-- v1 / v2 sub-tabs -->
+        <ul class="nav nav-pills mb-3" id="designVersionTabs">
+          <li class="nav-item">
+            <button class="nav-link active" id="pill-v1" onclick="switchDesignVersion('v1')">
+              Version 1 <span class="badge bg-danger ms-1" id="v1-pill-count">0</span>
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" id="pill-v2" onclick="switchDesignVersion('v2')" style="color:#6610f2;">
+              Version 2 <span class="badge ms-1" style="background:#6610f2;" id="v2-pill-count">0</span>
+            </button>
+          </li>
+        </ul>
+        <div id="designs-gallery-v1" class="row g-3">
+          <div class="col-12 text-muted text-center py-4" style="font-size:0.85rem">Click the tab to load designs.</div>
+        </div>
+        <div id="designs-gallery-v2" class="row g-3" style="display:none;">
+          <div class="col-12 text-muted text-center py-4" style="font-size:0.85rem">No v2 designs generated yet.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PIPELINE TAB -->
+    <div class="tab-pane fade" id="tab-pipeline">
+      <div class="row g-3" id="pipeline-cards"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Team Detail Modal -->
+<div class="modal fade" id="teamModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal-team-name">Team Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox">
+  <button id="lb-close" onclick="closeLightbox()">✕</button>
+  <button id="lb-delete" onclick="deleteLightboxDesign()" title="Delete this design" style="position:fixed;top:16px;right:60px;background:rgba(220,53,69,0.8);border:none;color:#fff;font-size:1rem;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s;" onmouseover="this.style.background='rgba(220,53,69,1)'" onmouseout="this.style.background='rgba(220,53,69,0.8)'">🗑</button>
+  <button class="lb-btn" id="lb-prev" onclick="lbNav(-1)">&#8592;</button>
+  <img id="lightbox-img" src="" alt="">
+  <button class="lb-btn" id="lb-next" onclick="lbNav(1)">&#8594;</button>
+  <div id="lightbox-label"></div>
+  <div id="lightbox-counter"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+let allTeams = [];
+let dtTable = null;
+let stateChart = null;
+
+function fmt(n, total) {
+  const pct = total > 0 ? (n / total * 100).toFixed(1) : 0;
+  return { pct, label: `${n.toLocaleString()} / ${total.toLocaleString()} (${pct}%)` };
+}
+
+async function loadStats() {
+  const r = await fetch('/api/stats');
+  const s = await r.json();
+  const total = s.total;
+
+  document.getElementById('total-count').textContent = total.toLocaleString();
+
+  const enr = fmt(s.enriched, total);
+  document.getElementById('enriched-count').textContent = s.enriched.toLocaleString();
+  document.getElementById('enriched-bar').style.width = enr.pct + '%';
+  document.getElementById('enriched-pct').textContent = enr.label;
+
+  const log = fmt(s.logos, total);
+  document.getElementById('logos-count').textContent = s.logos.toLocaleString();
+  document.getElementById('logos-bar').style.width = log.pct + '%';
+  document.getElementById('logos-pct').textContent = log.label;
+
+  const des = fmt(s.designs, total);
+  document.getElementById('designs-count').textContent = s.designs.toLocaleString();
+  document.getElementById('designs-bar').style.width = des.pct + '%';
+  document.getElementById('designs-pct').textContent = des.label;
+
+  const des2 = fmt(s.designs_v2 || 0, total);
+  document.getElementById('designs-v2-count').textContent = (s.designs_v2 || 0).toLocaleString();
+  document.getElementById('designs-v2-bar').style.width = des2.pct + '%';
+
+  // Field coverage
+  const fc = s.field_coverage;
+  const colors = {
+    'Website': '#0d6efd', 'Email': '#198754', 'Facebook': '#4267B2',
+    'Instagram': '#C13584', 'Phone': '#fd7e14', 'Head Coach': '#6f42c1',
+    'Admin Contact': '#20c997', 'Mascot': '#dc3545'
+  };
+  let html = '';
+  for (const [field, data] of Object.entries(fc)) {
+    const pct = data.pct;
+    const color = colors[field] || '#6c757d';
+    html += `
+      <div class="mb-2">
+        <div class="d-flex justify-content-between mb-1">
+          <span style="font-size:0.8rem;font-weight:500">${field}</span>
+          <span style="font-size:0.75rem;color:#6c757d">${data.filled.toLocaleString()} / ${data.total.toLocaleString()}</span>
+        </div>
+        <div class="progress" style="height:10px;border-radius:5px;background:#e9ecef;">
+          <div class="progress-bar" style="width:${Math.max(pct, pct > 0 ? 2 : 0)}%;background:${color};border-radius:5px;transition:width 0.6s ease;" title="${pct}%"></div>
+        </div>
+      </div>`;
+  }
+  document.getElementById('field-coverage-list').innerHTML = html;
+
+  // State chart
+  const states = Object.entries(s.state_counts).sort((a,b) => b[1]-a[1]);
+  const labels = states.map(x => x[0]);
+  const counts = states.map(x => x[1]);
+  const enrichedPerState = labels.map(st => s.state_enriched[st] || 0);
+
+  if (stateChart) stateChart.destroy();
+  const ctx = document.getElementById('chart-states').getContext('2d');
+  stateChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Enriched',
+          data: enrichedPerState,
+          backgroundColor: '#198754',
+          stack: 'stack',
+        },
+        {
+          label: 'Pending',
+          data: counts.map((c, i) => c - enrichedPerState[i]),
+          backgroundColor: '#dee2e6',
+          stack: 'stack',
+        }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.raw}`
+          }
+        }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+async function loadLog() {
+  const r = await fetch('/api/log');
+  const entries = await r.json();
+  document.getElementById('log-count').textContent = `${entries.length} entries`;
+
+  if (!entries.length) return;
+
+  const html = [...entries].reverse().map(e => {
+    const ts = e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : '';
+    const cls = e.status === 'ok' ? 'log-ok' : 'log-error';
+    const icon = e.status === 'ok' ? '✓' : '✗';
+    return `<div class="log-entry ${cls}">
+      <span style="opacity:0.5">${ts}</span>
+      ${icon} <strong>${e.team_name}</strong> (${e.city}, ${e.state})
+      ${e.website ? `<a href="${e.website}" target="_blank" style="font-size:0.7rem;margin-left:4px">↗</a>` : ''}
+      ${e.error ? `<span class="text-danger"> — ${e.error}</span>` : ''}
+    </div>`;
+  }).join('');
+  document.getElementById('log-feed').innerHTML = html;
+}
+
+async function loadTeams() {
+  const r = await fetch('/api/teams');
+  allTeams = await r.json();
+
+  // Populate state filter
+  const states = [...new Set(allTeams.map(t => t.state))].sort();
+  const sel = document.getElementById('state-filter');
+  sel.innerHTML = '<option value="">All States</option>' + states.map(s => `<option value="${s}">${s}</option>`).join('');
+
+  renderTable(allTeams);
+}
+
+function renderTable(teams) {
+  if (dtTable) { dtTable.destroy(); dtTable = null; }
+
+  const tbody = document.getElementById('teams-tbody');
+  tbody.innerHTML = teams.map((t, i) => {
+    const logoHtml = t.has_logo
+      ? `<img src="/logos/${t.slug}.png" class="logo-thumb" title="${t.name}">`
+      : `<div class="d-flex align-items-center gap-1">
+           <div class="logo-placeholder">—</div>
+           <button class="btn btn-outline-primary btn-sm" style="font-size:0.65rem;padding:1px 5px;line-height:1.4;" onclick="event.stopPropagation(); extractLogo('${t.slug}', this)" title="Fetch logo">↓</button>
+         </div>`;
+
+    const statusBadge = t.status === 'enriched'
+      ? `<span class="badge badge-enriched" style="font-size:0.65rem">Enriched</span>`
+      : `<span class="badge badge-pending" style="font-size:0.65rem">Not Enriched</span>`;
+
+    const websiteHtml = t.website
+      ? `<a href="${t.website}" target="_blank" style="font-size:0.75rem;word-break:break-all;">${t.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}</a>`
+      : '<span class="text-muted">—</span>';
+
+    const emailHtml = t.email
+      ? `<span style="font-size:0.75rem">${t.email}</span> <button class="btn btn-outline-secondary btn-sm copy-btn" onclick="copyText('${t.email}', this)">copy</button>`
+      : '<span class="text-muted">—</span>';
+
+    return `<tr class="${t.status === 'enriched' ? 'enriched-row' : ''}" onclick="showTeam(${t.idx})" style="cursor:pointer">
+      <td class="text-muted" style="font-size:0.75rem;width:40px">${t.idx}</td>
+      <td style="width:44px">${logoHtml}</td>
+      <td><strong style="font-size:0.85rem">${t.name}</strong></td>
+      <td style="font-size:0.82rem;color:#555">${t.city}</td>
+      <td><span class="badge bg-secondary state-badge">${t.state}</span></td>
+      <td>${websiteHtml}</td>
+      <td>${emailHtml}</td>
+      <td style="font-size:0.8rem;color:#555">${t.coach || '<span class="text-muted">—</span>'}</td>
+      <td style="font-size:0.8rem;color:#555">${t.mascot || '<span class="text-muted">—</span>'}</td>
+      <td>${statusBadge}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('table-count').textContent = `${teams.length.toLocaleString()} teams`;
+
+  dtTable = $('#teamsTable').DataTable({
+    pageLength: 50,
+    order: [],
+    columnDefs: [
+      { orderable: false, targets: [1, 5, 6] }
+    ],
+    language: {
+      search: "Search:",
+      lengthMenu: "Show _MENU_",
+      info: "_START_–_END_ of _TOTAL_",
+    },
+    dom: '<"d-flex align-items-center gap-2 mb-2"lf>tip',
+  });
+}
+
+function applyFilters() {
+  const state = document.getElementById('state-filter').value;
+  const status = document.getElementById('status-filter').value;
+  const logo = document.getElementById('logo-filter').value;
+
+  let filtered = allTeams;
+  if (state) filtered = filtered.filter(t => t.state === state);
+  if (status) filtered = filtered.filter(t => t.status === status);
+  if (logo === 'yes') filtered = filtered.filter(t => t.has_logo);
+  if (logo === 'no') filtered = filtered.filter(t => !t.has_logo);
+
+  renderTable(filtered);
+}
+
+document.getElementById('state-filter').addEventListener('change', applyFilters);
+document.getElementById('status-filter').addEventListener('change', applyFilters);
+document.getElementById('logo-filter').addEventListener('change', applyFilters);
+
+function showTeam(idx) {
+  const t = allTeams.find(x => x.idx === idx);
+  if (!t) return;
+
+  document.getElementById('modal-team-name').textContent = t.name;
+
+  const logoHtml = t.has_logo
+    ? `<div>
+         <img src="/logos/${t.slug}.png?t=${t._cacheBust || ''}" style="max-height:80px;max-width:160px;object-fit:contain;border:1px solid #e9ecef;border-radius:6px;padding:6px;background:#fff;">
+         <div class="mt-1"><button class="btn btn-sm btn-outline-secondary" style="font-size:0.72rem;" onclick="extractLogoModal('${t.slug}', this)">Re-extract logo</button></div>
+       </div>`
+    : `<div>
+         <div class="text-muted mb-1" style="font-size:0.82rem">No logo downloaded</div>
+         <button class="btn btn-sm btn-outline-primary" style="font-size:0.72rem;" onclick="extractLogoModal('${t.slug}', this)">Fetch logo</button>
+       </div>`;
+
+  const fields = [
+    ['City', t.city], ['State', t.state],
+    ['Website', t.website ? `<a href="${t.website}" target="_blank">${t.website}</a>` : '—'],
+    ['Email', t.email ? `${t.email} <button class="btn btn-sm btn-outline-secondary copy-btn ms-1" onclick="copyText('${t.email}', this)">copy</button>` : '—'],
+    ['Phone', t.phone || '—'],
+    ['Facebook', t.facebook ? `<a href="${t.facebook}" target="_blank">${t.facebook}</a>` : '—'],
+    ['Instagram', t.instagram ? `<a href="${t.instagram}" target="_blank">${t.instagram}</a>` : '—'],
+    ['Head Coach', t.coach || '—'],
+    ['Admin Contact', t.admin_contact || '—'],
+    ['Address', t.address || '—'],
+    ['Mascot', t.mascot || '—'],
+  ];
+
+  const tableRows = fields.map(([k, v]) =>
+    `<tr><td class="text-muted" style="width:130px;font-size:0.82rem">${k}</td><td style="font-size:0.85rem">${v}</td></tr>`
+  ).join('');
+
+  const badges = [
+    t.status === 'enriched' ? '<span class="badge bg-success">Enriched</span>' : '<span class="badge bg-secondary">Not Enriched</span>',
+    t.has_logo ? '<span class="badge bg-primary">Logo Downloaded</span>' : '<span class="badge bg-light text-dark border">No Logo</span>',
+    t.has_design ? '<span class="badge bg-warning text-dark">Design v1 Ready</span>' : '<span class="badge bg-light text-dark border">No Design v1</span>',
+    t.has_design_v2 ? '<span class="badge text-white" style="background:#6610f2">Design v2 Ready</span>' : '<span class="badge bg-light text-dark border">No Design v2</span>',
+  ].join(' ');
+
+  document.getElementById('modal-body').innerHTML = `
+    <div class="d-flex gap-3 align-items-start mb-3">
+      ${logoHtml}
+      <div>
+        <div class="mb-2">${badges}</div>
+        <div class="text-muted" style="font-size:0.78rem">Slug: <code>${t.slug}</code></div>
+      </div>
+    </div>
+    <table class="table table-sm table-borderless"><tbody>${tableRows}</tbody></table>
+  `;
+
+  new bootstrap.Modal(document.getElementById('teamModal')).show();
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'copied!';
+    btn.classList.add('btn-success');
+    btn.classList.remove('btn-outline-secondary');
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-outline-secondary');
+    }, 1500);
+  });
+}
+
+let designsLoaded = false;
+let allDesigns = [];
+let allDesignsV2 = [];
+let activeDesignVersion = 'v1';
+let lbIndex = 0;
+
+async function loadDesigns() {
+  if (designsLoaded) return;
+  const [r1, r2] = await Promise.all([fetch('/api/designs'), fetch('/api/designs_v2')]);
+  allDesigns   = await r1.json();
+  allDesignsV2 = await r2.json();
+
+  document.getElementById('v1-pill-count').textContent = allDesigns.length;
+  document.getElementById('v2-pill-count').textContent = allDesignsV2.length;
+  document.getElementById('designs-gallery-count').textContent =
+    `${allDesigns.length} v1 · ${allDesignsV2.length} v2`;
+
+  renderDesignGallery('v1');
+  renderDesignGallery('v2');
+  designsLoaded = true;
+}
+
+function renderDesignGallery(version) {
+  const items   = version === 'v1' ? allDesigns : allDesignsV2;
+  const urlBase = version === 'v1' ? '/designs/' : '/designs_v2/';
+  const galleryId = version === 'v1' ? 'designs-gallery-v1' : 'designs-gallery-v2';
+
+  if (!items.length) {
+    document.getElementById(galleryId).innerHTML =
+      `<div class="col-12 text-muted text-center py-4" style="font-size:0.85rem">No ${version} designs generated yet.</div>`;
+    return;
+  }
+
+  const html = items.map((d, i) => {
+    const parts = d.slug.split('_');
+    const state = parts[parts.length - 1].toUpperCase();
+    const name  = parts.slice(0, -1).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    return `
+      <div class="col-sm-6 col-md-4 col-lg-3">
+        <div class="card border-0 shadow-sm design-card" onclick="openLightbox(${i}, '${version}')">
+          <button class="btn btn-danger design-delete-btn" onclick="event.stopPropagation(); deleteDesign('${d.slug}', '${version}')" title="Delete design">✕</button>
+          <img src="${urlBase}${d.filename}" loading="lazy" alt="${name}">
+          <div class="card-body">
+            <div class="design-label" title="${name}">${name}</div>
+            <div class="design-state">${state}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  document.getElementById(galleryId).innerHTML = html;
+}
+
+function switchDesignVersion(version) {
+  activeDesignVersion = version;
+  document.getElementById('designs-gallery-v1').style.display = version === 'v1' ? '' : 'none';
+  document.getElementById('designs-gallery-v2').style.display = version === 'v2' ? '' : 'none';
+  document.getElementById('pill-v1').classList.toggle('active', version === 'v1');
+  document.getElementById('pill-v2').classList.toggle('active', version === 'v2');
+}
+
+function openLightbox(i, version) {
+  activeDesignVersion = version || activeDesignVersion;
+  lbIndex = i;
+  updateLightbox();
+  document.getElementById('lightbox').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function lbNav(dir) {
+  const items = activeDesignVersion === 'v1' ? allDesigns : allDesignsV2;
+  lbIndex = (lbIndex + dir + items.length) % items.length;
+  updateLightbox();
+}
+
+function updateLightbox() {
+  const items   = activeDesignVersion === 'v1' ? allDesigns : allDesignsV2;
+  const urlBase = activeDesignVersion === 'v1' ? '/designs/' : '/designs_v2/';
+  const d = items[lbIndex];
+  const parts = d.slug.split('_');
+  const state = parts[parts.length - 1].toUpperCase();
+  const name  = parts.slice(0, -1).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  document.getElementById('lightbox-img').src = `${urlBase}${d.filename}`;
+  document.getElementById('lightbox-label').textContent = `${name} — ${state} (${activeDesignVersion.toUpperCase()})`;
+  document.getElementById('lightbox-counter').textContent = `${lbIndex + 1} / ${items.length}`;
+}
+
+document.addEventListener('keydown', e => {
+  const lb = document.getElementById('lightbox');
+  if (!lb.classList.contains('active')) return;
+  if (e.key === 'ArrowRight') lbNav(1);
+  else if (e.key === 'ArrowLeft') lbNav(-1);
+  else if (e.key === 'Escape') closeLightbox();
+});
+
+document.getElementById('lightbox').addEventListener('click', function(e) {
+  if (e.target === this) closeLightbox();
+});
+
+// --- Single-team logo extraction ---
+
+async function extractLogo(slug, btn) {
+  const orig = btn.textContent;
+  btn.textContent = '…';
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/extract-logo/${slug}`, { method: 'POST' });
+    const result = await r.json();
+    if (result.status === 'ok') {
+      // Swap placeholder + button for the actual logo image
+      const cell = btn.closest('td');
+      cell.innerHTML = `<img src="/logos/${slug}.png?t=${Date.now()}" class="logo-thumb">`;
+      // Update in-memory record so the modal also reflects it
+      const t = allTeams.find(x => x.slug === slug);
+      if (t) t.has_logo = true;
+    } else {
+      btn.textContent = '✗';
+      btn.title = result.status || 'failed';
+      btn.classList.replace('btn-outline-primary', 'btn-outline-warning');
+      btn.disabled = false;
+    }
+  } catch {
+    btn.textContent = '✗';
+    btn.disabled = false;
+  }
+}
+
+async function extractLogoModal(slug, btn) {
+  const orig = btn.textContent;
+  btn.textContent = 'Fetching…';
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/extract-logo/${slug}`, { method: 'POST' });
+    const result = await r.json();
+    if (result.status === 'ok') {
+      // Reload the modal with cache-busted logo URL
+      const t = allTeams.find(x => x.slug === slug);
+      if (t) { t.has_logo = true; t._cacheBust = Date.now(); showTeam(t.idx); }
+    } else {
+      btn.textContent = result.status || 'Failed';
+      btn.classList.replace('btn-outline-secondary', 'btn-outline-warning');
+      btn.classList.replace('btn-outline-primary', 'btn-outline-warning');
+      btn.disabled = false;
+    }
+  } catch {
+    btn.textContent = 'Error';
+    btn.disabled = false;
+  }
+}
+
+// --- Per-design deletion ---
+
+async function deleteDesign(slug, version) {
+  if (!confirm(`Delete ${slug} (${version})?`)) return;
+  const r = await fetch(`/api/designs/${version}/${slug}`, { method: 'DELETE' });
+  if (!r.ok) { alert('Delete failed'); return; }
+  if (version === 'v1') {
+    allDesigns = allDesigns.filter(d => d.slug !== slug);
+  } else {
+    allDesignsV2 = allDesignsV2.filter(d => d.slug !== slug);
+  }
+  document.getElementById('v1-pill-count').textContent = allDesigns.length;
+  document.getElementById('v2-pill-count').textContent = allDesignsV2.length;
+  document.getElementById('designs-gallery-count').textContent =
+    `${allDesigns.length} v1 · ${allDesignsV2.length} v2`;
+  renderDesignGallery(version);
+}
+
+async function deleteLightboxDesign() {
+  const items = activeDesignVersion === 'v1' ? allDesigns : allDesignsV2;
+  const d = items[lbIndex];
+  if (!d) return;
+  closeLightbox();
+  await deleteDesign(d.slug, activeDesignVersion);
+}
+
+// --- Pipeline control ---
+
+const PIPELINE_DEFS = [
+  { name: 'enrich',    label: 'Team Enrichment',    script: 'pipeline/enrich_teams.py' },
+  { name: 'logos',     label: 'Extract Logos',       script: 'pipeline/extract_logos.py' },
+  { name: 'parkas_v1', label: 'Generate Parkas v1',  script: 'pipeline/generate_parkas.py' },
+  { name: 'parkas_v2', label: 'Generate Parkas v2',  script: 'pipeline/generate_parkas_v2.py' },
+];
+
+let pipelinePollInterval = null;
+
+function startPipelinePoll() {
+  renderPipelineCards();
+  if (!pipelinePollInterval) {
+    fetchPipelineStatus();
+    pipelinePollInterval = setInterval(fetchPipelineStatus, 2000);
+  }
+}
+
+function renderPipelineCards() {
+  const container = document.getElementById('pipeline-cards');
+  container.innerHTML = PIPELINE_DEFS.map(p => `
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm p-3 process-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div style="font-weight:600;font-size:0.95rem">${p.label}</div>
+            <div class="text-muted" style="font-size:0.72rem">${p.script}</div>
+          </div>
+          <span class="badge status-badge-idle" id="status-badge-${p.name}">Idle</span>
+        </div>
+        <div class="d-flex gap-2 mb-2">
+          <button class="btn btn-sm btn-success" id="btn-run-${p.name}" onclick="runProcess('${p.name}')">Run</button>
+          <button class="btn btn-sm btn-danger" id="btn-stop-${p.name}" onclick="stopProcess('${p.name}')" disabled>Stop</button>
+        </div>
+        <pre class="process-log" id="log-${p.name}">No output yet.</pre>
+      </div>
+    </div>`).join('');
+}
+
+async function runProcess(name) {
+  const r = await fetch(`/api/run/${name}`, { method: 'POST' });
+  if (!r.ok) {
+    const e = await r.json();
+    alert(e.error || 'Failed to start');
+    return;
+  }
+  fetchPipelineStatus();
+}
+
+async function stopProcess(name) {
+  const r = await fetch(`/api/stop/${name}`, { method: 'POST' });
+  if (!r.ok) {
+    const e = await r.json();
+    alert(e.error || 'Failed to stop');
+    return;
+  }
+  fetchPipelineStatus();
+}
+
+async function fetchPipelineStatus() {
+  let data;
+  try {
+    const r = await fetch('/api/pipeline-status');
+    data = await r.json();
+  } catch { return; }
+
+  for (const p of PIPELINE_DEFS) {
+    const state = data[p.name];
+    if (!state) continue;
+
+    const badge   = document.getElementById(`status-badge-${p.name}`);
+    const btnRun  = document.getElementById(`btn-run-${p.name}`);
+    const btnStop = document.getElementById(`btn-stop-${p.name}`);
+    const logEl   = document.getElementById(`log-${p.name}`);
+
+    if (!badge) continue;
+
+    const s = state.status;
+    const running = s === 'running';
+
+    badge.className = 'badge';
+    if (s === 'idle')    badge.classList.add('status-badge-idle');
+    else if (running)    badge.classList.add('status-badge-running');
+    else if (s === 'done') badge.classList.add('status-badge-done');
+    else if (s === 'stopped') badge.classList.add('status-badge-stopped');
+    else                 badge.classList.add('status-badge-error');
+    badge.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+
+    btnRun.disabled  = running;
+    btnStop.disabled = !running;
+
+    if (state.lines && state.lines.length) {
+      const wasAtBottom = logEl.scrollHeight - logEl.scrollTop <= logEl.clientHeight + 20;
+      logEl.textContent = state.lines.join('\n');
+      if (wasAtBottom) logEl.scrollTop = logEl.scrollHeight;
+    }
+  }
+}
+
+async function loadAll() {
+  await Promise.all([loadStats(), loadLog(), loadTeams()]);
+  document.getElementById('last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+// Auto-refresh every 30 seconds
+loadAll();
+setInterval(loadAll, 30000);
+</script>
+</body>
+</html>
