@@ -22,7 +22,7 @@ PIPELINE_SCRIPTS = {
     "enrich":    BASE / "pipeline" / "enrich_teams.py",
     "logos":     BASE / "pipeline" / "extract_logos.py",
     "parkas_v1": BASE / "pipeline" / "generate_parkas.py",
-    "parkas_v2": BASE / "pipeline" / "generate_parkas_v2.py",
+    "parkas_v2": BASE / "pipeline" / "generate_parkas_v2_backup.py",
 }
 _pipeline = {name: {"status": "idle", "lines": [], "proc": None} for name in PIPELINE_SCRIPTS}
 _lock = threading.Lock()

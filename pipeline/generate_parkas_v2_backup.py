@@ -202,9 +202,9 @@ def encode_b64(data: bytes) -> str:
 def analyze_logo_with_claude(team_name: str, logo_path: Path) -> dict:
     """
     Send the team logo to Claude. Returns a dict with:
-      parka_color    — one of PARKA_COMBOS (e.g. "Navy-Red")
-      logo_description — detailed description of logo elements for the Gemini prompt
-      back_text_color  — "white" or "black" for best contrast on the chosen parka
+      parka_color     — one of PARKA_COMBOS (e.g. "Navy-Red")
+      back_text_color — "white" or "black" for best contrast on the chosen parka
+      display_name    — short name to print on the back panel
     """
     logo_bytes = upscale_logo(logo_path) if USE_UPSCALER else logo_path.read_bytes()
     logo_b64   = encode_b64(logo_bytes)
@@ -217,7 +217,7 @@ def analyze_logo_with_claude(team_name: str, logo_path: Path) -> dict:
         "parka colorways that look professional and make the logo pop."
     )
 
-    user_text = f"""Analyze this swim team logo for "{team_name}" and return a JSON object with exactly these four fields:
+    user_text = f"""Analyze this swim team logo for "{team_name}" and return a JSON object with exactly these three fields:
 
 1. "parka_color": Choose the single best parka colorway from this list:
 {combos_str}
@@ -226,16 +226,10 @@ def analyze_logo_with_claude(team_name: str, logo_path: Path) -> dict:
    If the logo is predominantly black, do NOT pick Black — pick Navy or Royal instead.
    Prioritize contrast and visibility above all else. The logo should pop off the parka, not blend in.
 
-2. "logo_description": Write a detailed description of every visible element in the logo —
-   all text, icons, shapes, animals, and their exact colors. This description will be used
-   in an AI image generation prompt, so be specific (e.g. "a circular red border containing
-   navy block text 'CARMEL' arching above a large navy letter C with a white interior,
-   and white text 'SWIM CLUB' arching below, with two small red stars").
-
-3. "back_text_color": Either "white" or "black" — whichever will be most readable
+2. "back_text_color": Either "white" or "black" — whichever will be most readable
    printed on the PRIMARY color of your chosen parka_color.
 
-4. "display_name": The short name to print on the back of the parka.
+3. "display_name": The short name to print on the back of the parka.
    Look at the text visible IN the logo itself and use that as the display name if it is short and clean.
    For example, if the logo says "NOVA SWIMMING", use "NOVA SWIMMING".
    If the logo says "TAC TITANS", use "TAC TITANS".
@@ -277,7 +271,6 @@ Return ONLY valid JSON, no other text."""
 def build_gemini_prompt(
     team_name: str,
     back_name: str,
-    logo_description: str,
     back_text_color: str,
     parka_color: str,
 ) -> str:
@@ -293,7 +286,6 @@ or any physical feature. The only modifications allowed are adding the logo to t
 LEFT PANEL (full height, ~57% of total width):
 Reproduce the exact parka from image_1 — same style, same color, same pose, same every detail.
 Add the "{team_name}" logo from image_3 as embroidery on the upper left chest area.
-The logo consists of: {logo_description}.
 The embroidery threads blend naturally with the fabric.
 
 TOP RIGHT PANEL (upper portion of right side):
@@ -396,10 +388,9 @@ def main():
             # Step 2: Claude selects color + describes logo
             log.info("  → Analyzing logo with Claude...")
             analysis = analyze_logo_with_claude(team_name, logo_path)
-            parka_color      = analysis["parka_color"]
-            logo_description = analysis["logo_description"]
-            back_text_color  = analysis.get("back_text_color", "white")
-            display_name     = analysis.get("display_name") or shorten_name(team_name)
+            parka_color     = analysis["parka_color"]
+            back_text_color = analysis.get("back_text_color", "white")
+            display_name    = analysis.get("display_name") or shorten_name(team_name)
 
             # Validate Claude's color choice
             if parka_color not in PARKA_COMBOS:
@@ -416,7 +407,6 @@ def main():
             prompt = build_gemini_prompt(
                 team_name=team_name,
                 back_name=display_name,
-                logo_description=logo_description,
                 back_text_color=back_text_color,
                 parka_color=parka_color,
             )

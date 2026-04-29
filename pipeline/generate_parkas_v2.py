@@ -59,11 +59,17 @@ USE_UPSCALER      = True
 UPSCALE_TARGET    = 600   # px on the longest side after upscaling
 SAVE_UPSCALED     = True  # Save upscaled logos to logos_upscaled/ for inspection
 
+# Debug: save all 4 Gemini inputs + full prompt to debug/{slug}/ for inspection
+DEBUG_SAVE_INPUTS = True
+
 LOGOS_UPSCALED_DIR = BASE / "logos_upscaled"
+DEBUG_DIR          = BASE / "debug"
 
 DESIGNS_DIR.mkdir(exist_ok=True)
 if SAVE_UPSCALED:
     LOGOS_UPSCALED_DIR.mkdir(exist_ok=True)
+if DEBUG_SAVE_INPUTS:
+    DEBUG_DIR.mkdir(exist_ok=True)
 
 # All 12 available parka color combos (Primary-Secondary)
 # Primary  = outer shell color
@@ -226,16 +232,10 @@ def analyze_logo_with_claude(team_name: str, logo_path: Path) -> dict:
    If the logo is predominantly black, do NOT pick Black — pick Navy or Royal instead.
    Prioritize contrast and visibility above all else. The logo should pop off the parka, not blend in.
 
-2. "logo_description": Write a detailed description of every visible element in the logo —
-   all text, icons, shapes, animals, and their exact colors. This description will be used
-   in an AI image generation prompt, so be specific (e.g. "a circular red border containing
-   navy block text 'CARMEL' arching above a large navy letter C with a white interior,
-   and white text 'SWIM CLUB' arching below, with two small red stars").
-
-3. "back_text_color": Either "white" or "black" — whichever will be most readable
+2. "back_text_color": Either "white" or "black" — whichever will be most readable
    printed on the PRIMARY color of your chosen parka_color.
 
-4. "display_name": The short name to print on the back of the parka.
+3. "display_name": The short name to print on the back of the parka.
    Look at the text visible IN the logo itself and use that as the display name if it is short and clean.
    For example, if the logo says "NOVA SWIMMING", use "NOVA SWIMMING".
    If the logo says "TAC TITANS", use "TAC TITANS".
@@ -277,7 +277,6 @@ Return ONLY valid JSON, no other text."""
 def build_gemini_prompt(
     team_name: str,
     back_name: str,
-    logo_description: str,
     back_text_color: str,
     parka_color: str,
 ) -> str:
@@ -293,7 +292,6 @@ or any physical feature. The only modifications allowed are adding the logo to t
 LEFT PANEL (full height, ~57% of total width):
 Reproduce the exact parka from image_1 — same style, same color, same pose, same every detail.
 Add the "{team_name}" logo from image_3 as embroidery on the upper left chest area.
-The logo consists of: {logo_description}.
 The embroidery threads blend naturally with the fabric.
 
 TOP RIGHT PANEL (upper portion of right side):
@@ -308,14 +306,28 @@ Clean athletic sans-serif font. No other changes to the parka.
 Soft even studio lighting. Pure white background on all panels."""
 
 
+def save_debug_inputs(slug: str, frame_path: Path, front_path: Path, back_path: Path, logo_bytes: bytes, prompt: str):
+    d = DEBUG_DIR / slug
+    d.mkdir(exist_ok=True)
+    (d / "image_0_frame.png").write_bytes(frame_path.read_bytes())
+    (d / "image_1_front_parka.jpg").write_bytes(front_path.read_bytes())
+    (d / "image_2_back_parka.jpg").write_bytes(back_path.read_bytes())
+    (d / "image_3_logo.png").write_bytes(logo_bytes)
+    (d / "prompt.txt").write_text(prompt, encoding="utf-8")
+
+
 def generate_with_gemini(
     frame_path: Path,
     front_path: Path,
     back_path: Path,
     logo_bytes: bytes,
     prompt: str,
+    slug: str = "",
 ) -> bytes:
     """Send 4 images + prompt to Gemini, return generated image bytes."""
+    if DEBUG_SAVE_INPUTS and slug:
+        save_debug_inputs(slug, frame_path, front_path, back_path, logo_bytes, prompt)
+
     contents = [
         types.Part.from_bytes(data=frame_path.read_bytes(), mime_type="image/png"),
         types.Part.from_bytes(data=front_path.read_bytes(), mime_type="image/jpeg"),
@@ -421,7 +433,7 @@ def main():
                 parka_color=parka_color,
             )
             log.info(f"  → Back name: {display_name}")
-            entry["prompt"] = prompt[:200]
+            entry["prompt"] = prompt
 
             # Step 5: Gemini generates the design card
             log.info("  → Generating with Gemini...")
@@ -431,6 +443,7 @@ def main():
                 back_path=back_path,
                 logo_bytes=logo_bytes,
                 prompt=prompt,
+                slug=slug,
             )
 
             out_path.write_bytes(image_bytes)
